@@ -37,13 +37,14 @@ private[spline] trait AgentBOM {
   def lineageDispatcher: LineageDispatcher
   def iwdStrategy: IgnoredWriteDetectionStrategy
   def execPlanUUIDVersion: UUIDVersion
+  def pluginsConfig: Configuration
 }
 
 object AgentBOM {
 
   import za.co.absa.commons.ConfigurationImplicits._
   import za.co.absa.commons.config.ConfigurationImplicits._
-  import za.co.absa.commons.lang.OptionImplicits._
+  import za.co.absa.commons.lang.extensions.TraversableExtension._
 
   def createFrom(defaultConfig: Configuration, configs: Seq[Configuration], sparkSession: SparkSession): AgentBOM = new AgentBOM {
     private val mergedConfig = new CompositeConfiguration((configs :+ defaultConfig).asJava)
@@ -61,8 +62,15 @@ object AgentBOM {
       mergedConfig.getRequiredInt(ConfProperty.ExecPlanUUIDVersion)
     }
 
+    override def pluginsConfig: Configuration = {
+      mergedConfig.subset(ConfProperty.PluginsConfigNamespace)
+    }
+
     override lazy val postProcessingFilter: Option[PostProcessingFilter] = {
-      val nonDefaultRefs = configs.flatMap(_.getOptionalObject[AnyRef](ConfProperty.RootPostProcessingFilter))
+      val nonDefaultRefs = configs
+        .flatMap(_.getOptionalObject[AnyRef](ConfProperty.RootPostProcessingFilter))
+        .distinct
+
       val refs =
         if (nonDefaultRefs.nonEmpty) {
           nonDefaultRefs

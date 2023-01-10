@@ -20,10 +20,10 @@ import java.util.UUID
 
 case class ExecutionEvent (
   planId: UUID,
-  labels: Option[Map[String, Seq[String]]],
+  labels: Map[String, Seq[String]],
   timestamp: Long,
   durationNs: Option[Long],
   discriminator: Option[String],
   error: Option[Any],
-  extra: Option[Map[String, Any]]
+  extra: Map[String, Any]
 )

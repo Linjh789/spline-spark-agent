@@ -21,7 +21,7 @@ import com.mongodb.spark.rdd.MongoRDD
 import javax.annotation.Priority
 import org.apache.spark.sql.execution.datasources.{LogicalRelation, SaveIntoDataSourceCommand}
 import org.apache.spark.sql.sources.BaseRelation
-import za.co.absa.commons.reflect.ReflectionUtils.extractFieldValue
+import za.co.absa.commons.reflect.ReflectionUtils.extractValue
 import za.co.absa.commons.reflect.extractors.SafeTypeMatchingExtractor
 import za.co.absa.spline.harvester.builder.SourceIdentifier
 import za.co.absa.spline.harvester.plugin.Plugin.{Precedence, ReadNodeInfo, WriteNodeInfo}
@@ -39,12 +39,12 @@ class MongoPlugin
 
   override def baseRelationProcessor: PartialFunction[(BaseRelation, LogicalRelation), ReadNodeInfo] = {
     case (`_: MongoRelation`(mongr), _) =>
-      val mongoRDD = extractFieldValue[MongoRDD[_]](mongr, "mongoRDD")
-      val readConfig = extractFieldValue[ReadConfig](mongoRDD, "readConfig")
+      val mongoRDD = extractValue[MongoRDD[_]](mongr, "mongoRDD")
+      val readConfig = extractValue[ReadConfig](mongoRDD, "readConfig")
       val database = readConfig.databaseName
       val collection = readConfig.collectionName
       val connectionUrl = readConfig.connectionString.getOrElse(sys.error("Unable to extract MongoDB connection URL"))
-      (asSourceId(connectionUrl, database, collection), Map.empty)
+      ReadNodeInfo(asSourceId(connectionUrl, database, collection), Map.empty)
   }
 
   override def relationProviderProcessor: PartialFunction[(AnyRef, SaveIntoDataSourceCommand), WriteNodeInfo] = {
@@ -52,7 +52,7 @@ class MongoPlugin
       val database = cmd.options("database")
       val collection = cmd.options("collection")
       val uri = cmd.options("uri")
-      (asSourceId(uri, database, collection), cmd.mode, cmd.query, cmd.options)
+      WriteNodeInfo(asSourceId(uri, database, collection), cmd.mode, cmd.query, cmd.options)
   }
 }
 

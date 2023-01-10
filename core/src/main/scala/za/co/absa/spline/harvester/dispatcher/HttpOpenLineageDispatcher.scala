@@ -74,7 +74,7 @@ class HttpOpenLineageDispatcher(restClient: RestClient, apiVersion: Version, ope
 
     try {
       endpoint
-        .post(json, MediaType.APPLICATION_JSON, false)
+        .post(json, MediaType.APPLICATION_JSON, enableRequestCompression = false)
         .throwError
 
     } catch {
@@ -94,7 +94,9 @@ object HttpOpenLineageDispatcher extends Logging {
       Http,
       config.apiUrl,
       config.connTimeout,
-      config.readTimeout
+      config.readTimeout,
+      config.disableSslValidation,
+      config.headers
     )
   }
 

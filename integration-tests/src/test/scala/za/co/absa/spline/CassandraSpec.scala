@@ -39,7 +39,7 @@ class CassandraSpec
     with ReleasableResourceFixture {
 
   it should "support Cassandra on older Spark versions" taggedAs ignoreIf(ver"$SPARK_VERSION" >= ver"3.0.0") in {
-    usingResource(new CassandraContainer("cassandra:3.11.2") ) { container =>
+    usingResource(new CassandraContainer("cassandra:3.11.3") ) { container =>
       container.start()
 
       withNewSparkSession { implicit spark =>
@@ -80,11 +80,11 @@ class CassandraSpec
             }
           } yield {
             plan1.operations.write.append shouldBe false
-            plan1.operations.write.extra.get("destinationType") shouldBe Some("cassandra")
+            plan1.operations.write.extra("destinationType") shouldBe Some("cassandra")
             plan1.operations.write.outputSource shouldBe s"cassandra:$keyspace:$table"
 
-            plan2.operations.reads.get.head.inputSources.head shouldBe plan1.operations.write.outputSource
-            plan2.operations.reads.get.head.extra.get("sourceType") shouldBe Some("cassandra")
+            plan2.operations.reads.head.inputSources.head shouldBe plan1.operations.write.outputSource
+            plan2.operations.reads.head.extra("sourceType") shouldBe Some("cassandra")
           }
         }
       }
@@ -128,11 +128,11 @@ class CassandraSpec
             }
           } yield {
             plan1.operations.write.append shouldBe true
-            plan1.operations.write.extra.get("destinationType") shouldBe Some("cassandra")
+            plan1.operations.write.extra("destinationType") shouldBe Some("cassandra")
             plan1.operations.write.outputSource shouldBe s"cassandra:$keyspace:$table"
 
-            plan2.operations.reads.get.head.inputSources.head shouldBe plan1.operations.write.outputSource
-            plan2.operations.reads.get.head.extra.get("sourceType") shouldBe Some("cassandra")
+            plan2.operations.reads.head.inputSources.head shouldBe plan1.operations.write.outputSource
+            plan2.operations.reads.head.extra("sourceType") shouldBe Some("cassandra")
           }
         }
       }

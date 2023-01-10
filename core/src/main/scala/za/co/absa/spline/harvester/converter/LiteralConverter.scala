@@ -30,7 +30,7 @@ class LiteralConverter(
 ) extends Converter {
 
   import ExpressionConverter._
-  import za.co.absa.commons.lang.OptionImplicits._
+  import za.co.absa.commons.lang.extensions.NonOptionExtension._
 
   override type From = sparkExprssions.Literal
   override type To = Literal
@@ -42,7 +42,7 @@ class LiteralConverter(
         .convert(lit.dataType, lit.nullable)
         .asOption
         .map(_.id),
-      extra = createExtra(lit, "expr.Literal").asOption,
+      extra = createExtra(lit, "expr.Literal"),
       value = dataConverter.convert((lit.value, lit.dataType))
     )
 }

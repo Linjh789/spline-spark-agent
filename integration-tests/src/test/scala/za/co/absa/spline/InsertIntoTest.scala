@@ -17,6 +17,7 @@ package za.co.absa.spline
 
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.functions._
+import org.scalatest.OneInstancePerTest
 import org.scalatest.flatspec.AsyncFlatSpec
 import org.scalatest.matchers.should.Matchers
 import za.co.absa.spline.test.fixture.spline.SplineFixture
@@ -24,13 +25,14 @@ import za.co.absa.spline.test.fixture.spline.SplineFixture.extractTableIdentifie
 import za.co.absa.spline.test.fixture.{SparkDatabaseFixture, SparkFixture}
 
 class InsertIntoTest extends AsyncFlatSpec
+  with OneInstancePerTest
   with Matchers
   with SparkFixture
   with SplineFixture
   with SparkDatabaseFixture {
 
   "InsertInto" should "not fail when inserting to partitioned table created as Spark tables" in
-    withNewSparkSession { implicit spark =>
+    withIsolatedSparkSession(_.enableHiveSupport()) { implicit spark =>
       withLineageTracking { captor =>
         withDatabase("test",
           ("path_archive", "(x String, ymd int) USING json PARTITIONED BY (ymd)",
@@ -56,7 +58,7 @@ class InsertIntoTest extends AsyncFlatSpec
     }
 
   "ParquetTable" should "Produce CatalogTable params" in
-    withNewSparkSession { implicit spark =>
+    withIsolatedSparkSession(_.enableHiveSupport()) { implicit spark =>
       withLineageTracking { captor =>
         withDatabase("test",
           ("path_archive", "(x String, ymd int) USING parquet PARTITIONED BY (ymd)",
@@ -76,7 +78,7 @@ class InsertIntoTest extends AsyncFlatSpec
             plan.operations.write.outputSource should include("path_archive")
             plan.operations.write.append should be(false)
             val writeTable = extractTableIdentifier(plan.operations.write.params)
-            val readTable = extractTableIdentifier(plan.operations.reads.get.head.params)
+            val readTable = extractTableIdentifier(plan.operations.reads.head.params)
             writeTable("table") should be("path_archive")
             writeTable("database") should be(Some("test"))
             readTable("table") should be("path")
@@ -87,7 +89,7 @@ class InsertIntoTest extends AsyncFlatSpec
     }
 
   "CsvTable" should "Produce CatalogTable params" in
-    withNewSparkSession { implicit spark =>
+    withIsolatedSparkSession(_.enableHiveSupport()) { implicit spark =>
       withLineageTracking { captor =>
         withDatabase("test",
           ("path_archive", "(x String, ymd int) USING csv PARTITIONED BY (ymd)",
@@ -107,7 +109,7 @@ class InsertIntoTest extends AsyncFlatSpec
             plan.operations.write.outputSource should include("path_archive")
             plan.operations.write.append should be(false)
             val writeTable = extractTableIdentifier(plan.operations.write.params)
-            val readTable = extractTableIdentifier(plan.operations.reads.get.head.params)
+            val readTable = extractTableIdentifier(plan.operations.reads.head.params)
             writeTable("table") should be("path_archive")
             writeTable("database") should be(Some("test"))
             readTable("table") should be("path")
@@ -118,7 +120,7 @@ class InsertIntoTest extends AsyncFlatSpec
     }
 
   "JsonTable" should "Produce CatalogTable params" in
-    withNewSparkSession { implicit spark =>
+    withIsolatedSparkSession(_.enableHiveSupport()) { implicit spark =>
       withLineageTracking { captor =>
         withDatabase("test",
           ("path_archive", "(x String, ymd int) USING json PARTITIONED BY (ymd)",
@@ -139,7 +141,7 @@ class InsertIntoTest extends AsyncFlatSpec
             plan.operations.write.outputSource should include("path_archive")
             plan.operations.write.append should be(false)
             val writeTable = extractTableIdentifier(plan.operations.write.params)
-            val readTable = extractTableIdentifier(plan.operations.reads.get.head.params)
+            val readTable = extractTableIdentifier(plan.operations.reads.head.params)
             writeTable("table") should be("path_archive")
             writeTable("database") should be(Some("test"))
             readTable("table") should be("path")
@@ -150,7 +152,7 @@ class InsertIntoTest extends AsyncFlatSpec
     }
 
   "ORCTable" should "Produce CatalogTable params" in
-    withNewSparkSession { implicit spark =>
+    withIsolatedSparkSession(_.enableHiveSupport()) { implicit spark =>
       withLineageTracking { captor =>
         withDatabase("test",
           ("path_archive", "(x String, ymd int) USING orc PARTITIONED BY (ymd)",
@@ -171,7 +173,7 @@ class InsertIntoTest extends AsyncFlatSpec
             plan.operations.write.outputSource should include("path_archive")
             plan.operations.write.append should be(false)
             val writeTable = extractTableIdentifier(plan.operations.write.params)
-            val readTable = extractTableIdentifier(plan.operations.reads.get.head.params)
+            val readTable = extractTableIdentifier(plan.operations.reads.head.params)
             writeTable("table") should be("path_archive")
             writeTable("database") should be(Some("test"))
             readTable("table") should be("path")
@@ -180,5 +182,4 @@ class InsertIntoTest extends AsyncFlatSpec
         }
       }
     }
-
 }

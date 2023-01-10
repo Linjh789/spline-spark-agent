@@ -28,7 +28,8 @@ abstract class SparkApp
 (
   name: String,
   master: String = "local[*]",
-  conf: Seq[(String, String)] = Nil
+  conf: Seq[(String, String)] = Nil,
+  tags: Seq[String] = Nil
 ) extends SQLImplicits with App {
 
   private val sparkBuilder = SparkSession.builder()
@@ -36,19 +37,7 @@ abstract class SparkApp
   sparkBuilder.appName(name)
   sparkBuilder.master(master)
   sparkBuilder.config("spark.driver.host","localhost")
-
-
-  sparkBuilder.config("spark.spline.postProcessingFilter.composite.filters", "userExtraMeta")
-  sparkBuilder.config("spark.spline.postProcessingFilter.userExtraMeta.rules",
-    """
-      |{
-      |  "executionPlan": {
-      |    "labels": {
-      |      "tags": [ "example" ] \,
-      |      "appName": { "$js": "session.conf().get('spark.app.name')" }
-      |    }
-      |  }
-      |}""".stripMargin)
+  sparkBuilder.config("spline.example.tags", tags.mkString(","))
 
   for ((k, v) <- conf) sparkBuilder.config(k, v)
 

@@ -172,7 +172,7 @@ sparkSession.enableLineageTracking(config)
 ```
 
 **Note**: `AgentConfig` object doesn't override the standard configuration stack. Instead, it serves as an additional configuration mean
-with the precedence set between the `spline.properties` and `spline.default.properties` files (see below). 
+with the precedence set between the `spline.yaml` and `spline.default.yaml` files (see below). 
 
 <a id="configuration"></a>
 ## Configuration
@@ -182,10 +182,11 @@ The agent looks for configuration in the following sources (listed in order of p
 - Spark configuration
 - JVM system properties
 - `spline.properties` file on classpath
+- `spline.yaml` file on classpath
 - `AgentConfig` object
-- `spline.default.properties` file on classpath
+- `spline.default.yaml` file on classpath
 
-The file [spline.default.properties](core/src/main/resources/spline.default.properties) contains default values 
+The file [spline.default.yaml](core/src/main/resources/spline.default.yaml) contains default values 
 for all Spline properties along with additional documentation.
 It's a good idea to look in the file to see what properties are available.
 
@@ -216,14 +217,7 @@ the whole piece of configuration for a given component.
 
 #### `spline.mode`
 
-- `REQUIRED` [default]
-  
-    If Spline fails to initialize itself (e.g., wrong configuration, no db connection) the Spark application aborts with an error. 
-  (**Note**: it only concerns Spline initialization routine. 
-  If the error happens during lineage capturing, or in the Spline dispatcher, then the target Spark job have already been finished by that time, 
-  and the resulted data have been persisted, regardless of the `spline.mode` settings. The Spline agent doesn't do any automated rollbacks).
-
-- `BEST_EFFORT`
+- `ENABLED` [default]
   
     Spline will try to initialize itself, but if it fails it switches to DISABLED mode 
   allowing the Spark application to proceed normally without Lineage tracking.
@@ -231,8 +225,6 @@ the whole piece of configuration for a given component.
 - `DISABLED`
   
   Lineage tracking is completely disabled and Spline is unhooked from Spark.
-
-**Note**: The default value for `spline.mode` has changed in Spline 1.0.0. It used to be `BEST_EFFORT` for Spline 0.x version series.
 
 #### `spline.lineageDispatcher`
 The logical name of the root lineage dispatcher. See [Lineage Dispatchers](#dispatchers) chapter.
@@ -265,10 +257,32 @@ spline.lineageDispatcher=kafka
 Once you defined the dispatcher all other parameters will have a namespace `spline.lineageDispatcher.{{dipatcher-name}}.` as a prefix. 
 In this case it is `spline.lineageDispatcher.kafka.`.
 
-To find out which parameters you can use look into `spline.default.properties`. For kafka I would have to define at least these two properties:
+To find out which parameters you can use look into `spline.default.yaml`. For kafka I would have to define at least these two properties:
 ```properties
 spline.lineageDispatcher.kafka.topic=foo
 spline.lineageDispatcher.kafka.producer.bootstrap.servers=localhost:9092
+```
+
+#### Using the Http Dispatcher
+This dispatcher is used by default. The only mandatory configuration is url of the producer API rest endpoint 
+(`spline.lineageDispatcher.http.producer.url`).
+Additionally, timeouts, apiVersion and multiple custom headers can be set.
+
+```properties
+spline.lineageDispatcher.http.producer.url=
+spline.lineageDispatcher.http.timeout.connection=2000
+spline.lineageDispatcher.http.timeout.read=120000
+spline.lineageDispatcher.http.apiVersion=LATEST
+spline.lineageDispatcher.http.header.X-CUSTOM-HEADER=custom-header-value
+```
+Example: Azure HTTP trigger template API key header can be set like this:
+```properties
+spline.lineageDispatcher.http.header.X-FUNCTIONS-KEY=USER_API_KEY
+```
+
+Example: AWS Rest API key header can be set like this:
+```properties
+spline.lineageDispatcher.http.header.X-API-Key=USER_API_KEY
 ```
 
 #### Using the Fallback Dispatcher
@@ -367,7 +381,7 @@ spline.postProcessingFilter=composite
 spline.postProcessingFilter.composite.filters=myFilter1,myFilter2
 ```
 
-(see `spline.default.properties` for details and examples)
+(see `spline.default.yaml` for details and examples)
 
 <a id="spark-coverage"></a>
 ## Spark features coverage
@@ -381,8 +395,13 @@ _SQL_ dialect is mostly supported.
 
 _DDL_ operations are not supported, excepts for `CREATE TABLE ... AS SELECT ...` which is supported.
 
-**Note**: the lineage is only captured on persistent (write) actions.
-In-memory only actions like `collect()` or `printSchema()` are ignored.
+**Note**: By default, the lineage is only captured on persistent (write) actions.
+To capture in-memory actions like `collect()`, `show()` etc the corresponding plugin needs to be activated
+by setting up the following configuration property:
+```properties
+spline.plugins.za.co.absa.spline.harvester.plugin.embedded.NonPersistentActionsCapturePlugin.enabled=true
+```
+(See [spline.default.yaml](core/src/main/resources/spline.default.yaml#L230) for more information)
 
 The following data formats and providers are supported out of the box:
 - Avro
@@ -580,16 +599,16 @@ Java version: 1.8.0_302, vendor: Red Hat, Inc., runtime: /usr/lib/jvm/java-1.8.0
 ```
 
 There are several maven profiles that makes it easy to build the project with different versions of Spark and Scala.
-- Scala profiles: `scala-2.11`, `scala-2.12`
-- Spark profiles: `spark-2.2`, `spark-2.3`, `spark-2.4`, `spark-3.0`, `spark-3.1`
+- Scala profiles: `scala-2.11`, `scala-2.12` (default)
+- Spark profiles: `spark-2.2`, `spark-2.3`, `spark-2.4` (default), `spark-3.0`, `spark-3.1`, `spark-3.2`, `spark-3.3`
 
-For example, to build an agent for Spark 2.4 and Scala 2.12: 
+For example, to build an agent for Spark 2.4 and Scala 2.11: 
 ```shell
 # Change Scala version in pom.xml.
-mvn scala-cross-build:change-version -Pscala-2.12
+mvn scala-cross-build:change-version -Pscala-2.11
 
-# now you can build for Scala 2.12
-mvn clean install -Pscala-2.12,spark-2.4
+# now you can build for Scala 2.11
+mvn clean install -Pscala-2.11,spark-2.4
 ```
 
 ### Build docker image

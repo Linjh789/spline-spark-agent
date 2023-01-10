@@ -89,7 +89,7 @@ object AgentConfig {
   object ConfProperty {
 
     /**
-     * How Spline should behave.
+     * ENABLED or DISABLED
      *
      * @see [[SplineMode]]
      */
@@ -122,6 +122,8 @@ object AgentConfig {
      * Strategy used to detect ignored writes
      */
     val IgnoreWriteDetectionStrategy = "spline.IWDStrategy"
+
+    val PluginsConfigNamespace = "spline.plugins"
 
     def dispatcherClassName(logicalName: String): String = s"$RootLineageDispatcher.$logicalName.${HierarchicalObjectFactory.ClassName}"
 

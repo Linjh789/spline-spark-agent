@@ -18,7 +18,7 @@ package za.co.absa.spline.harvester.dispatcher
 import org.apache.commons.configuration.Configuration
 import org.apache.spark.internal.Logging
 import scalaj.http.{Http, HttpStatusException}
-import za.co.absa.commons.lang.OptionImplicits._
+import za.co.absa.commons.lang.extensions.TraversableExtension._
 import za.co.absa.commons.version.Version
 import za.co.absa.spline.harvester.dispatcher.ProducerApiVersion.SupportedApiRange
 import za.co.absa.spline.harvester.dispatcher.httpdispatcher.HttpConstants.Encoding
@@ -54,7 +54,7 @@ class HttpLineageDispatcher(restClient: RestClient, apiVersionOption: Option[Ver
   private val executionPlansEndpoint = restClient.endpoint(RESTResource.ExecutionPlans)
   private val executionEventsEndpoint = restClient.endpoint(RESTResource.ExecutionEvents)
 
-  private val serverHeaders: Map[String, IndexedSeq[String]] = getServerHeaders(restClient)
+  private lazy val serverHeaders: Map[String, IndexedSeq[String]] = getServerHeaders(restClient)
   private val apiVersion: Version = apiVersionOption.getOrElse(resolveApiVersion(serverHeaders))
 
   logInfo(s"Using Producer API version: ${apiVersion.asString}")
@@ -107,7 +107,9 @@ object HttpLineageDispatcher extends Logging {
       Http,
       config.producerUrl,
       config.connTimeout,
-      config.readTimeout
+      config.readTimeout,
+      config.disableSslValidation,
+      config.headers
     )
   }
 

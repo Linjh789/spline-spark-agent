@@ -16,13 +16,10 @@
 
 package za.co.absa.spline.harvester.plugin.embedded
 
-import java.io.InputStream
-
 import com.crealytics.spark.excel.{DefaultSource, ExcelRelation}
-import javax.annotation.Priority
 import org.apache.spark.sql.execution.datasources.LogicalRelation
 import org.apache.spark.sql.sources.BaseRelation
-import za.co.absa.commons.reflect.ReflectionUtils.extractFieldValue
+import za.co.absa.commons.reflect.ReflectionUtils.extractValue
 import za.co.absa.commons.reflect.extractors.SafeTypeMatchingExtractor
 import za.co.absa.spline.harvester.builder.SourceIdentifier
 import za.co.absa.spline.harvester.plugin.Plugin.{Precedence, ReadNodeInfo}
@@ -30,6 +27,8 @@ import za.co.absa.spline.harvester.plugin.embedded.ExcelPlugin._
 import za.co.absa.spline.harvester.plugin.{BaseRelationProcessing, DataSourceFormatNameResolving, Plugin}
 import za.co.absa.spline.harvester.qualifier.PathQualifier
 
+import java.io.InputStream
+import javax.annotation.Priority
 import scala.util.Try
 
 
@@ -43,12 +42,12 @@ class ExcelPlugin(pathQualifier: PathQualifier)
     case (`_: ExcelRelation`(exr), _) =>
       val excelRelation = exr.asInstanceOf[ExcelRelation]
       val workbookReader = excelRelation.workbookReader
-      val inputStream = extractFieldValue[() => InputStream](workbookReader, "inputStreamProvider")()
-      val path = extractFieldValue[org.apache.hadoop.fs.Path](inputStream, "file")
+      val inputStream = extractValue[() => InputStream](workbookReader, "inputStreamProvider")()
+      val path = extractValue[org.apache.hadoop.fs.Path](inputStream, "file")
       val qualifiedPath = pathQualifier.qualify(path.toString)
       val sourceId = asSourceId(qualifiedPath)
       val params = extractExcelParams(excelRelation) + ("header" -> excelRelation.header.toString)
-      (sourceId, params)
+      ReadNodeInfo(sourceId, params)
   }
 
   override def formatNameResolver: PartialFunction[AnyRef, String] = {
@@ -66,7 +65,7 @@ object ExcelPlugin {
     val locator = excelRelation.dataLocator
 
     def extract(fieldName: String) =
-      Try(extractFieldValue[Any](locator, fieldName))
+      Try(extractValue[Any](locator, fieldName))
         .map(_.toString)
         .getOrElse("")
 

@@ -20,7 +20,7 @@ import org.apache.commons.lang3.StringUtils.substringAfter
 import org.apache.spark.sql.catalyst.expressions.ExprId
 import org.apache.spark.sql.catalyst.{expressions => sparkExprssions}
 import za.co.absa.commons.lang.Converter
-import za.co.absa.spline.harvester.{IdGenerator, SequentialIdGenerator}
+import za.co.absa.spline.harvester.SequentialIdGenerator
 import za.co.absa.spline.harvester.converter.ReflectiveExtractor.extractProperties
 import za.co.absa.spline.producer.model._
 
@@ -34,7 +34,6 @@ class ExpressionConverter(
 ) extends Converter {
 
   import ExpressionConverter._
-  import za.co.absa.commons.lang.OptionImplicits._
 
   override type From = sparkExprssions.Expression
   override type To = FunctionalExpression
@@ -45,40 +44,40 @@ class ExpressionConverter(
       FunctionalExpression(
         id = idGen.nextId(),
         dataType = convertDataType(a),
-        childRefs = convertChildren(a).asOption,
-        extra = createExtra(sparkExpr, ExprV1.Types.Alias).asOption,
+        childRefs = convertChildren(a),
+        extra = createExtra(sparkExpr, ExprV1.Types.Alias),
         name = a.name,
-        params = getExpressionParameters(a).asOption
+        params = getExpressionParameters(a)
       )
 
     case bo: sparkExprssions.BinaryOperator =>
       FunctionalExpression(
         id = idGen.nextId(),
         dataType = convertDataType(bo),
-        childRefs = convertChildren(bo).asOption,
-        extra = (createExtra(bo, ExprV1.Types.Binary) + (ExprExtra.Symbol -> bo.symbol)).asOption,
+        childRefs = convertChildren(bo),
+        extra = (createExtra(bo, ExprV1.Types.Binary) + (ExprExtra.Symbol -> bo.symbol)),
         name = bo.prettyName,
-        params = getExpressionParameters(bo).asOption
+        params = getExpressionParameters(bo)
       )
 
     case u: sparkExprssions.ScalaUDF =>
       FunctionalExpression(
         id = idGen.nextId(),
         dataType = convertDataType(u),
-        childRefs = convertChildren(u).asOption,
-        extra = createExtra(u, ExprV1.Types.UDF).asOption,
+        childRefs = convertChildren(u),
+        extra = createExtra(u, ExprV1.Types.UDF),
         name = u.udfName getOrElse u.function.getClass.getName,
-        params = getExpressionParameters(u).asOption
+        params = getExpressionParameters(u)
       )
 
     case e: sparkExprssions.LeafExpression =>
       FunctionalExpression(
         id = idGen.nextId(),
         dataType = convertDataType(e),
-        childRefs = None,
-        extra = createExtra(e, ExprV1.Types.GenericLeaf).asOption,
+        childRefs = Seq.empty,
+        extra = createExtra(e, ExprV1.Types.GenericLeaf),
         name = e.prettyName,
-        params = getExpressionParameters(e).asOption
+        params = getExpressionParameters(e)
       )
 
     case _: sparkExprssions.WindowSpecDefinition
@@ -86,20 +85,20 @@ class ExpressionConverter(
       FunctionalExpression(
         id = idGen.nextId(),
         dataType = None,
-        childRefs = convertChildren(sparkExpr).asOption,
-        extra = createExtra(sparkExpr, ExprV1.Types.UntypedExpression).asOption,
+        childRefs = convertChildren(sparkExpr),
+        extra = createExtra(sparkExpr, ExprV1.Types.UntypedExpression),
         name = sparkExpr.prettyName,
-        params = getExpressionParameters(sparkExpr).asOption
+        params = getExpressionParameters(sparkExpr)
       )
 
     case e: sparkExprssions.Expression =>
       FunctionalExpression(
         id = idGen.nextId(),
         dataType = convertDataType(e),
-        childRefs = convertChildren(e).asOption,
-        extra = createExtra(e, ExprV1.Types.Generic).asOption,
+        childRefs = convertChildren(e),
+        extra = createExtra(e, ExprV1.Types.Generic),
         name = e.prettyName,
-        params = getExpressionParameters(e).asOption
+        params = getExpressionParameters(e)
       )
   }
 
@@ -144,7 +143,7 @@ object ExpressionConverter {
     if (simpleName.nonEmpty) simpleName else fullName
   }
 
-  def createExtra(expr: sparkExprssions.Expression, typeHint: String) = Map(
+  def createExtra(expr: sparkExprssions.Expression, typeHint: String): Map[String, String] = Map(
     ExprExtra.SimpleClassName -> getExpressionSimpleClassName(expr),
     ExprV1.TypeHint -> typeHint
   )

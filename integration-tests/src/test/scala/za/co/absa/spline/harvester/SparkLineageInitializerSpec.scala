@@ -31,9 +31,9 @@ import za.co.absa.commons.io.TempFile
 import za.co.absa.commons.json.DefaultJacksonJsonSerDe
 import za.co.absa.commons.scalatest.ConditionalTestTags._
 import za.co.absa.commons.version.Version._
+import za.co.absa.spline.agent.AgentConfig.ConfProperty
 import za.co.absa.spline.harvester.SparkLineageInitializer._
 import za.co.absa.spline.harvester.SparkLineageInitializerSpec._
-import za.co.absa.spline.agent.AgentConfig.ConfProperty
 import za.co.absa.spline.harvester.conf.{SQLFailureCaptureMode, SplineMode}
 import za.co.absa.spline.harvester.dispatcher.LineageDispatcher
 import za.co.absa.spline.harvester.exception.SplineInitializationException
@@ -49,7 +49,7 @@ class SparkLineageInitializerSpec
     with BeforeAndAfter
     with Matchers
     with MockitoSugar
-    with SparkFixture.NewPerTest
+    with SparkFixture
     with SystemFixture.IsolatedSystemPropertiesPerTest {
 
   before {
@@ -62,7 +62,7 @@ class SparkLineageInitializerSpec
 
   it should "ignore subsequent programmatic init" taggedAs ignoreIf(ver"$SPARK_VERSION" < ver"2.3") in {
     sys.props.put(SparkQueryExecutionListenersKey, classOf[SplineQueryExecutionListener].getName)
-    withSparkSession { session =>
+    withIsolatedSparkSession() { session =>
       session.enableLineageTracking()
       for (_ <- runSuccessfulDummySparkJob(session)) yield {
         MockLineageDispatcher.verifyTheOnlyLineageCaptured()
@@ -73,7 +73,7 @@ class SparkLineageInitializerSpec
 
   it should "propagate to child sessions" taggedAs ignoreIf(ver"$SPARK_VERSION" < ver"2.3") in {
     sys.props.put(SparkQueryExecutionListenersKey, classOf[SplineQueryExecutionListener].getName)
-    withSparkSession { session =>
+    withIsolatedSparkSession() { session =>
       val subSession = session.newSession()
       for (_ <- runSuccessfulDummySparkJob(subSession)) yield {
         MockLineageDispatcher.verifyTheOnlyLineageCaptured()
@@ -84,7 +84,7 @@ class SparkLineageInitializerSpec
   behavior of "enableLineageTracking()"
 
   it should "warn on double initialization" taggedAs ignoreIf(ver"$SPARK_VERSION" < ver"2.3") in {
-    withSparkSession { session =>
+    withIsolatedSparkSession() { session =>
       session.enableLineageTracking() // 1st is fine
       MockLineageDispatcher.instanceCount should be(1)
       session.enableLineageTracking() // 2nd should warn
@@ -93,9 +93,9 @@ class SparkLineageInitializerSpec
   }
 
   it should "allow user to start again after error" in {
-    sys.props += ConfProperty.Mode -> SplineMode.BEST_EFFORT.toString
+    sys.props += ConfProperty.Mode -> SplineMode.ENABLED.toString
 
-    withSparkSession { sparkSession =>
+    withIsolatedSparkSession() { sparkSession =>
       for {
         _ <- {
           // first attempt
@@ -123,15 +123,15 @@ class SparkLineageInitializerSpec
   }
 
   it should "return the spark session back to the caller" in {
-    withSparkSession(session =>
+    withIsolatedSparkSession() { session =>
       session.enableLineageTracking() shouldBe session
-    )
+    }
   }
 
   behavior of "Spline modes"
 
   it should "disable Spline and proceed after dispatcher init failure, when mode == BEST_EFFORT" in {
-    sys.props += ConfProperty.Mode -> SplineMode.BEST_EFFORT.toString
+    sys.props += ConfProperty.Mode -> SplineMode.ENABLED.toString
 
     withNewSparkSession { sparkSession =>
       MockLineageDispatcher.onConstructionThrow(new SplineInitializationException("boom"))
@@ -142,29 +142,10 @@ class SparkLineageInitializerSpec
     }
   }
 
-  it should "abort application on Java exception, when mode == REQUIRED" in {
-    sys.props += ConfProperty.Mode -> SplineMode.REQUIRED.toString
-    sys.props += ConfProperty.RootLineageDispatcher -> "wrong"
-    sys.props += ConfProperty.dispatcherClassName("wrong") -> "wrong.dispatcher.class"
-
-    the[ClassNotFoundException] thrownBy {
-      withSparkSession(_.enableLineageTracking())
-    } should have message "wrong.dispatcher.class"
-  }
-
-  it should "abort application on Spline exception, when mode == REQUIRED" in {
-    sys.props += ConfProperty.Mode -> SplineMode.REQUIRED.toString
-
-    the[SplineInitializationException] thrownBy {
-      MockLineageDispatcher.onConstructionThrow(new SplineInitializationException("boom"))
-      withNewSparkSession(_.enableLineageTracking())
-    } should have message "boom"
-  }
-
   it should "not react on agent init failure, when mode == DISABLED" in {
     sys.props += ConfProperty.Mode -> SplineMode.DISABLED.toString
 
-    withSparkSession { sparkSession =>
+    withIsolatedSparkSession() { sparkSession =>
       MockLineageDispatcher.onConstructionThrow(new SplineInitializationException("boom"))
       sparkSession.enableLineageTracking()
       for (_ <- runSuccessfulDummySparkJob(sparkSession)) yield {

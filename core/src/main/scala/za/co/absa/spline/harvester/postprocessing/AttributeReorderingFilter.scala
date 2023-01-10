@@ -21,7 +21,7 @@ import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import za.co.absa.commons.reflect.ReflectionUtils._
 import za.co.absa.commons.reflect.extractors.SafeTypeMatchingExtractor
 import za.co.absa.spline.harvester.HarvestingContext
-import za.co.absa.spline.harvester.builder.UnionNodeBuilder.ExtraFields
+import za.co.absa.spline.harvester.ModelConstants.CommonExtras
 import za.co.absa.spline.harvester.plugin.embedded.DataSourceV2Plugin.{IsByName, `_: V2WriteCommand`}
 import za.co.absa.spline.producer.model.{DataOperation, ExecutionPlan, WriteOperation}
 
@@ -32,7 +32,7 @@ class AttributeReorderingFilter extends AbstractInternalPostProcessingFilter {
   override def processExecutionPlan(plan: ExecutionPlan, ctx: HarvestingContext): ExecutionPlan = {
     val isByName = plan
       .operations.write.params
-      .flatMap(_.get(IsByName))
+      .get(IsByName)
       .exists(_.asInstanceOf[Boolean])
 
     if (isByName)
@@ -53,32 +53,31 @@ class AttributeReorderingFilter extends AbstractInternalPostProcessingFilter {
 
     val syntheticProjection = DataOperation(
       id = ctx.idGenerators.operationIdGenerator.nextId(),
-      name = Some("Project"),
-      childIds = Some(writeOp.childIds),
-      output = Some(reorderedOutput),
-      params = None,
-      extra = Some(Map(ExtraFields.Synthetic -> true))
+      name = "Project",
+      childIds = writeOp.childIds,
+      output = reorderedOutput,
+      params = Map.empty,
+      extra = Map(CommonExtras.Synthetic -> true)
     )
 
     plan.copy(
       operations = plan.operations.copy(
         write = writeOp.copy(childIds = Seq(syntheticProjection.id)),
-        other = Some(plan.operations.other.getOrElse(Seq.empty) :+ syntheticProjection)
+        other = plan.operations.other :+ syntheticProjection
       )
     )
   }
 
   private def newOrder(ctx: HarvestingContext): Seq[Int] = ctx.logicalPlan match {
     case `_: V2WriteCommand`(writeCommand) =>
-      val namedRelation = extractFieldValue[AnyRef](writeCommand, "table")
-      val finalOutput = extractFieldValue[Seq[Attribute]](namedRelation, "output")
-      val query = extractFieldValue[LogicalPlan](writeCommand, "query")
+      val namedRelation = extractValue[AnyRef](writeCommand, "table")
+      val finalOutput = extractValue[Seq[Attribute]](namedRelation, "output")
+      val query = extractValue[LogicalPlan](writeCommand, "query")
 
       query.output.map(att => finalOutput.indexWhere(_.name == att.name))
   }
 
   private def getWriteChildOutput(plan: ExecutionPlan, writeOp: WriteOperation): Seq[String] = {
-    import za.co.absa.commons.ProducerApiAdapters._
 
     val Seq(writeChildId) = writeOp.childIds
 

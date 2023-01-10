@@ -19,10 +19,10 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>za.co.absa.spline.agent.spark</groupId>
-    <artifactId>spline-spark-agent_2.11</artifactId>
+    <artifactId>spline-spark-agent_2.12</artifactId>
     <name>Spline Spark Agent</name>
     <description>Spline Agent for Apache Spark</description>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.1-SNAPSHOT</version>
 
     <parent>
         <groupId>za.co.absa</groupId>
@@ -111,7 +111,8 @@
         <delta-03.version>0.3.0</delta-03.version>
         <delta-08.version>0.8.0</delta-08.version>
         <delta-10.version>1.0.0</delta-10.version>
-        <delta-11.version>1.1.0</delta-11.version>
+        <delta-20.version>2.0.0</delta-20.version>
+        <delta-21.version>2.1.0</delta-21.version>
 
         <!-- Automapper -->
 
@@ -122,15 +123,15 @@
 
         <!-- Cross build properties -->
 
-        <default.scala.binary.version>2.11</default.scala.binary.version>
-        <default.scala.version>${scala_2.11.version}</default.scala.version>
+        <default.scala.binary.version>2.12</default.scala.binary.version>
+        <default.scala.version>${scala_2.12.version}</default.scala.version>
 
         <scala_2.11.version>2.11.12</scala_2.11.version>
-        <scala_2.12.version>2.12.15</scala_2.12.version>
+        <scala_2.12.version>2.12.17</scala_2.12.version>
 
         <!-- Controlled by `scala-cross-build` plugin -->
-        <scala.version>2.11.12</scala.version>
-        <scala.binary.version>2.11</scala.binary.version>
+        <scala.version>2.12.17</scala.version>
+        <scala.binary.version>2.12</scala.binary.version>
     </properties>
 
     <scm>
@@ -584,6 +585,12 @@
                 <artifactId>mockito-core</artifactId>
                 <version>3.2.0</version>
             </dependency>
+            <dependency>
+                <groupId>org.xerial.snappy</groupId>
+                <artifactId>snappy-java</artifactId>
+                <version>1.1.8.4</version>
+            </dependency>
+
         </dependencies>
     </dependencyManagement>
 
@@ -800,7 +807,7 @@
             <properties>
                 <spark.version>${spark-32.version}</spark.version>
                 <json4s.version>${json4s-37-M11.version}</json4s.version>
-                <delta.version>${delta-11.version}</delta.version>
+                <delta.version>${delta-20.version}</delta.version>
             </properties>
             <dependencyManagement>
                 <dependencies>
@@ -825,8 +832,7 @@
             <properties>
                 <spark.version>${spark-33.version}</spark.version>
                 <json4s.version>${json4s-37-M11.version}</json4s.version>
-                <!-- delta for Spark 3.3 is not yet available, using the latest version -->
-                <delta.version>${delta-11.version}</delta.version>
+                <delta.version>${delta-21.version}</delta.version>
             </properties>
             <dependencyManagement>
                 <dependencies>

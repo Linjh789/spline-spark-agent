@@ -21,13 +21,12 @@ import org.apache.spark.sql.catalyst.expressions.codegen.{CodegenContext, ExprCo
 import org.apache.spark.sql.catalyst.expressions.{CaseWhen, Expression, Literal}
 import org.apache.spark.sql.types.DataTypes.NullType
 import org.apache.spark.sql.types._
-import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.{Inside, OneInstancePerTest}
 import org.scalatestplus.mockito.MockitoSugar
-import za.co.absa.spline.harvester.{IdGenerator, SequentialIdGenerator}
+import za.co.absa.spline.harvester.SequentialIdGenerator
 import za.co.absa.spline.model.dt
 import za.co.absa.spline.producer.model.FunctionalExpression
 
@@ -58,9 +57,9 @@ class ExpressionConverterSpec extends AnyFlatSpec with OneInstancePerTest with M
         id shouldEqual "some_id"
         name shouldEqual "foo"
         dataTypeId shouldEqual nullDataType.id
-        children should be(None)
-        extra.get should contain("_typeHint" -> "expr.Generic")
-        params.get shouldNot contain key "aParamOfSecondaryConstructor"
+        children should be(Seq.empty)
+        extra should contain("_typeHint" -> "expr.Generic")
+        params shouldNot contain key "aParamOfSecondaryConstructor"
     }
   }
 
@@ -69,7 +68,7 @@ class ExpressionConverterSpec extends AnyFlatSpec with OneInstancePerTest with M
 
     inside(converter.convert(expression)) {
       case fe: FunctionalExpression =>
-        val params = fe.params.get
+        val params = fe.params
         params shouldNot contain key "otherExpression"
         params shouldNot contain key "string"
         params shouldNot contain key "javaInteger"
@@ -85,7 +84,7 @@ class ExpressionConverterSpec extends AnyFlatSpec with OneInstancePerTest with M
 
     inside(converter.convert(expression)) {
       case fe: FunctionalExpression =>
-        fe.params.get should contain allOf(
+        fe.params should contain allOf(
           "javaInteger" -> 1,
           "scalaInt" -> 2
         )
@@ -108,7 +107,7 @@ class ExpressionConverterSpec extends AnyFlatSpec with OneInstancePerTest with M
 
     inside(converter.convert(expression)) {
       case fe: FunctionalExpression =>
-        fe.params.get should contain allOf(
+        fe.params should contain allOf(
           "optionWithDefault" -> "this is a default value",
           "scalaIntWithDefault" -> 42
         )
@@ -127,7 +126,7 @@ class ExpressionConverterSpec extends AnyFlatSpec with OneInstancePerTest with M
 
     inside(converter.convert(expression)) {
       case fe: FunctionalExpression =>
-        fe.params.get should contain("option" -> Map("1" -> 10, "2" -> Seq(null, 20), "3" -> Map("42" -> 42)))
+        fe.params should contain("option" -> Map("1" -> 10, "2" -> Seq(null, 20), "3" -> Map("42" -> 42)))
     }
   }
 
@@ -136,7 +135,7 @@ class ExpressionConverterSpec extends AnyFlatSpec with OneInstancePerTest with M
 
     inside(converter.convert(expression)) {
       case fe: FunctionalExpression =>
-        fe.params.get should contain("any" -> "Bar")
+        fe.params should contain("any" -> "Bar")
     }
   }
 
@@ -145,7 +144,7 @@ class ExpressionConverterSpec extends AnyFlatSpec with OneInstancePerTest with M
 
     inside(converter.convert(expression)) {
       case fe: FunctionalExpression =>
-        fe.params.get should contain("any" -> "CASE WHEN 42 THEN Moo ELSE Meh END")
+        fe.params should contain("any" -> "CASE WHEN 42 THEN Moo ELSE Meh END")
     }
   }
 
@@ -162,7 +161,7 @@ class ExpressionConverterSpec extends AnyFlatSpec with OneInstancePerTest with M
 
     inside(converter.convert(expression)) {
       case fe: FunctionalExpression =>
-        fe.params.get should contain allOf(
+        fe.params should contain allOf(
           "any" -> "Bar",
           "option" -> "blah",
           "seq" -> Seq(Map("Some(this is some Bar object)" -> "blah"))
@@ -180,7 +179,7 @@ class ExpressionConverterSpec extends AnyFlatSpec with OneInstancePerTest with M
 
     inside(converter.convert(expression)) {
       case fe: FunctionalExpression =>
-        val params = fe.params.get
+        val params = fe.params
         params shouldNot contain key "nullable"
 
         params shouldNot contain key "dataType"
@@ -200,7 +199,7 @@ class ExpressionConverterSpec extends AnyFlatSpec with OneInstancePerTest with M
 
     inside(converter.convert(expression)) {
       case fe: FunctionalExpression =>
-        fe.params.get shouldNot contain key "otherExpression"
+        fe.params shouldNot contain key "otherExpression"
     }
   }
 }

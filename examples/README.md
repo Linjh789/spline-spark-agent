@@ -63,7 +63,7 @@ mvn test -P examples -D spline.producer.url=http://localhost:8888/producer
 
 To change the Spline Mode
 ```shell script
-mvn test -P examples -D spline.mode=BEST_EFFORT
+mvn test -P examples -D spline.mode=ENABLED
 ```
 
 
@@ -83,13 +83,16 @@ docker run --rm -e "SPLINE_PRODUCER_URL=http://localhost:8080/producer" absaoss/
 
 Available environment variables:
 
-| Variable name        | Description                                    |
-|----------------------|------------------------------------------------|
-| SPLINE_PRODUCER_URL  | Spline Producer REST API endpoint URL          |
-| SPLINE_MODE          | (see [Spline mode](../README.md#properties))   |
-| HTTP_PROXY_HOST      | (see [Java Networking and Proxies](https://docs.oracle.com/javase/8/docs/technotes/guides/net/proxies.html)) |
-| HTTP_PROXY_PORT      | (see [Java Networking and Proxies](https://docs.oracle.com/javase/8/docs/technotes/guides/net/proxies.html)) |
-| HTTP_NON_PROXY_HOSTS | (see [Java Networking and Proxies](https://docs.oracle.com/javase/8/docs/technotes/guides/net/proxies.html)) |
+| Variable name          | Description                                                                                                  |
+|------------------------|--------------------------------------------------------------------------------------------------------------|
+| SPLINE_PRODUCER_URL    | Spline Producer REST API endpoint URL                                                                        |
+| SPLINE_MODE            | (see [Spline mode](../README.md#properties))                                                                 |
+| DISABLE_SSL_VALIDATION | If `true`, disables validation of the server SSL certificate in the `HttpLineageDispatcher`                  |
+| HTTP_PROXY_HOST        | (see [Java Networking and Proxies](https://docs.oracle.com/javase/8/docs/technotes/guides/net/proxies.html)) |
+| HTTP_PROXY_PORT        | (see [Java Networking and Proxies](https://docs.oracle.com/javase/8/docs/technotes/guides/net/proxies.html)) |
+| HTTP_NON_PROXY_HOSTS   | (see [Java Networking and Proxies](https://docs.oracle.com/javase/8/docs/technotes/guides/net/proxies.html)) |
+
+(The default values can be seen in the respective [Dockerfile](../Dockerfile))
 
 ---
 

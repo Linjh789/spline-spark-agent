@@ -14,27 +14,28 @@
  * limitations under the License.
  */
 
-package za.co.absa.spline.harvester.builder
+package za.co.absa.spline.harvester.builder.plan
 
 import org.apache.spark.sql.catalyst.plans.logical.Union
 import org.apache.spark.sql.catalyst.{expressions => sparkExprssions}
-import za.co.absa.commons.lang.OptionImplicits._
+import za.co.absa.commons.lang.extensions.NonOptionExtension._
 import za.co.absa.spline.harvester.IdGeneratorsBundle
-import za.co.absa.spline.harvester.builder.UnionNodeBuilder._
+import za.co.absa.spline.harvester.ModelConstants.CommonExtras
+import za.co.absa.spline.harvester.builder.plan.UnionNodeBuilder.Names
 import za.co.absa.spline.harvester.converter.{DataConverter, DataTypeConverter}
 import za.co.absa.spline.harvester.postprocessing.PostProcessor
-import za.co.absa.spline.producer.model.{AttrOrExprRef, Attribute, FunctionalExpression}
+import za.co.absa.spline.producer.model.{AttrRef, Attribute, ExprRef, FunctionalExpression}
 
 class UnionNodeBuilder
-(override val operation: Union)
+(override val logicalPlan: Union)
   (idGenerators: IdGeneratorsBundle, dataTypeConverter: DataTypeConverter, dataConverter: DataConverter, postProcessor: PostProcessor)
-  extends GenericNodeBuilder(operation)(idGenerators, dataTypeConverter, dataConverter, postProcessor) {
+  extends GenericPlanNodeBuilder(logicalPlan)(idGenerators, dataTypeConverter, dataConverter, postProcessor) {
 
   private lazy val unionInputs: Seq[Seq[Attribute]] = inputAttributes.transpose
 
   override lazy val functionalExpressions: Seq[FunctionalExpression] =
     unionInputs
-      .zip(operation.output)
+      .zip(logicalPlan.output)
       .map { case (input, output) => constructUnionFunction(input, output) }
 
   override lazy val outputAttributes: Seq[Attribute] =
@@ -50,10 +51,10 @@ class UnionNodeBuilder
       id = idGenerators.expressionIdGenerator.nextId(),
       dataType = dataTypeConverter
         .convert(outputSparkAttribute.dataType, outputSparkAttribute.nullable).id.asOption,
-      childRefs = inputSplineAttributes.map(att => AttrOrExprRef(Some(att.id), None)).asOption,
-      extra = Map(ExtraFields.Synthetic -> true).asOption,
+      childRefs = inputSplineAttributes.map(att => AttrRef(att.id)),
+      extra = Map(CommonExtras.Synthetic -> true),
       name = Names.Union,
-      params = None
+      params = Map.empty
     )
 
   private def constructUnionAttribute(attributes: Seq[Attribute], function: FunctionalExpression) = {
@@ -61,8 +62,8 @@ class UnionNodeBuilder
     Attribute(
       id = idGenerators.attributeIdGenerator.nextId(),
       dataType = function.dataType,
-      childRefs = List(AttrOrExprRef(None, Some(function.id))).asOption,
-      extra = Map(ExtraFields.Synthetic -> true).asOption,
+      childRefs = List(ExprRef(function.id)),
+      extra = Map(CommonExtras.Synthetic -> true),
       name = attr1.name
     )
   }
@@ -73,10 +74,6 @@ object UnionNodeBuilder {
 
   object Names {
     val Union = "union"
-  }
-
-  object ExtraFields {
-    val Synthetic = "synthetic"
   }
 
 }

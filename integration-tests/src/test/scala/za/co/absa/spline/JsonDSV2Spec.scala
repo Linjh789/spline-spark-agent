@@ -40,7 +40,7 @@ class JsonDSV2Spec extends AsyncFlatSpec
   val jsonDir: String = TempDirectory("SparkFixture", "UnitTestJson", pathOnly = true).deleteOnExit().path.toString.stripSuffix("/")
 
   it should "support json V2 command" taggedAs ignoreIf(ver"$SPARK_VERSION" < ver"3.0.0") in
-    withCustomSparkSession(_
+    withIsolatedSparkSession(_
       .config("spark.sql.sources.useV1SourceList", "") // use V2 by default
     ) { implicit spark =>
       withLineageTracking { lineageCaptor =>
@@ -59,10 +59,10 @@ class JsonDSV2Spec extends AsyncFlatSpec
         } yield {
           plan1.id.get shouldEqual event1.planId
           plan1.operations.write.append shouldBe false
-          plan1.operations.write.extra.get("destinationType") shouldBe Some("json")
+          plan1.operations.write.extra("destinationType") shouldBe Some("json")
           plan1.operations.write.outputSource shouldBe s"file:$jsonDir/jsonV2"
 
-          plan2.operations.reads.get(0).inputSources.head shouldBe s"file:$jsonDir/jsonV2"
+          plan2.operations.reads(0).inputSources.head shouldBe s"file:$jsonDir/jsonV2"
         }
       }
     }

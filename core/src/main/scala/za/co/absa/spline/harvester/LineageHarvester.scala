@@ -19,15 +19,16 @@ package za.co.absa.spline.harvester
 import org.apache.commons.lang3.exception.ExceptionUtils
 import org.apache.spark
 import org.apache.spark.internal.Logging
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.catalyst.plans.logical._
-import org.apache.spark.sql.execution.{LeafExecNode, SparkPlan}
+import org.apache.spark.sql.execution.{ExternalRDD, LeafExecNode, LogicalRDD, SparkPlan}
 import za.co.absa.commons.CollectionImplicits._
 import za.co.absa.commons.graph.GraphImplicits._
 import za.co.absa.commons.lang.CachingConverter
-import za.co.absa.commons.lang.OptionImplicits._
 import za.co.absa.commons.reflect.ReflectionUtils
 import za.co.absa.commons.reflect.extractors.SafeTypeMatchingExtractor
+import za.co.absa.spline.agent.SplineAgent.FuncName
 import za.co.absa.spline.harvester.LineageHarvester._
 import za.co.absa.spline.harvester.ModelConstants.{AppMetaInfo, ExecutionEventExtra, ExecutionPlanExtra}
 import za.co.absa.spline.harvester.builder._
@@ -59,11 +60,11 @@ class LineageHarvester(
       map(getExecutedReadWriteMetrics).
       getOrElse((Map.empty, Map.empty))
 
-    tryExtractWriteCommand(ctx.logicalPlan).flatMap(writeCommand => {
+    tryExtractWriteCommand(ctx.funcName, ctx.logicalPlan).flatMap(writeCommand => {
       val writeOpBuilder = opNodeBuilderFactory.writeNodeBuilder(writeCommand)
       val restOpBuilders = createOperationBuildersRecursively(writeCommand.query)
 
-      restOpBuilders.lastOption.foreach(writeOpBuilder.+=)
+      restOpBuilders.lastOption.foreach(writeOpBuilder.addChild)
       val builders = restOpBuilders :+ writeOpBuilder
 
       val restOps = restOpBuilders.map(_.build())
@@ -91,21 +92,21 @@ class LineageHarvester(
             .distinct
 
           val expressions = Expressions(
-            constants = builders.map(_.literals).reduce(_ ++ _).asOption,
-            functions = builders.map(_.functionalExpressions).reduce(_ ++ _).asOption
+            constants = builders.map(_.literals).reduce(_ ++ _),
+            functions = builders.map(_.functionalExpressions).reduce(_ ++ _)
           )
 
           val p = ExecutionPlan(
             id = None,
             discriminator = None,
-            labels = None,
-            name = ctx.session.sparkContext.appName.asOption, // `appName` for now, but could be different (user defined) in the future
-            operations = Operations(writeOp, opReads.asOption, opOthers.asOption),
-            attributes = attributes.asOption,
-            expressions = expressions.asOption,
+            labels = Map.empty,
+            name = ctx.session.sparkContext.appName, // `appName` for now, but could be different (user defined) in the future
+            operations = Operations(writeOp, opReads, opOthers),
+            attributes = attributes,
+            expressions = expressions,
             systemInfo = SparkVersionInfo,
-            agentInfo = SplineVersionInfo.asOption,
-            extraInfo = planExtra.asOption
+            agentInfo = SplineVersionInfo,
+            extraInfo = planExtra
           )
           postProcessor.process(p)
         }
@@ -127,11 +128,11 @@ class LineageHarvester(
           val ev = ExecutionEvent(
             planId = planId,
             discriminator = None,
-            labels = None,
+            labels = Map.empty,
             timestamp = System.currentTimeMillis,
             durationNs = maybeDurationNs,
             error = maybeErrorString,
-            extra = eventExtra.asOption)
+            extra = eventExtra)
 
           postProcessor.process(ev)
         }
@@ -142,8 +143,8 @@ class LineageHarvester(
     })
   }
 
-  private def tryExtractWriteCommand(plan: LogicalPlan): Option[WriteCommand] =
-    Try(writeCommandExtractor.asWriteCommand(plan)) match {
+  private def tryExtractWriteCommand(funcName: FuncName, plan: LogicalPlan): Option[WriteCommand] =
+    Try(writeCommandExtractor.asWriteCommand(funcName, plan)) match {
       case Success(Some(write)) => Some(write)
       case Success(None) =>
         logDebug(s"${plan.getClass} was not recognized as a write-command. Skipping.")
@@ -158,8 +159,8 @@ class LineageHarvester(
     @scala.annotation.tailrec
     def traverseAndCollect(
       accBuilders: Seq[OperationNodeBuilder],
-      processedEntries: Map[LogicalPlan, OperationNodeBuilder],
-      enqueuedEntries: Seq[(LogicalPlan, OperationNodeBuilder)]
+      processedEntries: Map[PlanOrRdd, OperationNodeBuilder],
+      enqueuedEntries: Seq[(PlanOrRdd, OperationNodeBuilder)]
     ): Seq[OperationNodeBuilder] = {
       enqueuedEntries match {
         case Nil => accBuilders
@@ -167,7 +168,7 @@ class LineageHarvester(
           val maybeExistingBuilder = processedEntries.get(curOpNode)
           val curBuilder = maybeExistingBuilder.getOrElse(createOperationBuilder(curOpNode))
 
-          if (parentBuilder != null) parentBuilder += curBuilder
+          if (parentBuilder != null) parentBuilder.addChild(curBuilder)
 
           if (maybeExistingBuilder.isEmpty) {
 
@@ -184,28 +185,40 @@ class LineageHarvester(
       }
     }
 
-    val builders = traverseAndCollect(Nil, Map.empty, Seq((rootOp, null)))
+    val builders = traverseAndCollect(Nil, Map.empty, Seq((PlanWrap(rootOp), null)))
     builders.sortedTopologicallyBy(_.operationId, _.childIds, reverse = true)
   }
 
-  private def createOperationBuilder(op: LogicalPlan): OperationNodeBuilder =
-    readCommandExtractor.asReadCommand(op)
-      .map(opNodeBuilderFactory.readNodeBuilder)
-      .getOrElse(opNodeBuilderFactory.genericNodeBuilder(op))
+  private def createOperationBuilder(por: PlanOrRdd): OperationNodeBuilder =
+    readCommandExtractor.asReadCommand(por)
+      .map(rc => opNodeBuilderFactory.readNodeBuilder(rc, por))
+      .getOrElse(opNodeBuilderFactory.genericNodeBuilder(por))
 
-  private def extractChildren(plan: LogicalPlan) = plan match {
-    case AnalysisBarrierExtractor(_) =>
-      // special handling - spark 2.3 sometimes includes AnalysisBarrier in the plan
-      val child = ReflectionUtils.extractFieldValue[LogicalPlan](plan, "child")
-      Seq(child)
-
-    case _ => plan.children
+  private def extractChildren(por: PlanOrRdd): Seq[PlanOrRdd] = por match {
+    case PlanWrap(plan) =>
+      plan match {
+        case AnalysisBarrierExtractor(_) =>
+          // special handling - spark 2.3 sometimes includes AnalysisBarrier in the plan
+          val child = ReflectionUtils.extractValue[LogicalPlan](plan, "child")
+          Seq(PlanWrap(child))
+        case erdd: ExternalRDD[_] =>
+          Seq(RddWrap(erdd.rdd))
+        case lrdd: LogicalRDD =>
+          Seq(RddWrap(lrdd.rdd))
+        case _ => plan.children.map(PlanWrap)
+      }
+    case RddWrap(rdd) =>
+      rdd.dependencies.map(dep => RddWrap(dep.rdd))
   }
 }
 
 object LineageHarvester {
 
   import za.co.absa.commons.version.Version
+
+  trait PlanOrRdd
+  case class PlanWrap(plan: LogicalPlan) extends PlanOrRdd
+  case class RddWrap(rdd: RDD[_]) extends PlanOrRdd
 
   val SparkVersionInfo: NameAndVersion = NameAndVersion(
     name = AppMetaInfo.Spark,

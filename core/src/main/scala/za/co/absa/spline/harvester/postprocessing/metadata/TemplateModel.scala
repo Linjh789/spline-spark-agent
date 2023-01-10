@@ -17,6 +17,8 @@
 package za.co.absa.spline.harvester.postprocessing.metadata
 
 import org.apache.spark.internal.Logging
+import za.co.absa.commons.reflect.extractors.SafeTypeMatchingExtractor
+import za.co.absa.spline.harvester.postprocessing.metadata.EvaluableNames._
 
 import javax.script.ScriptEngine
 import scala.util.{Failure, Success, Try}
@@ -46,7 +48,7 @@ class DataTemplate(val extra: Map[String, Any], val labels: Map[String, Any]) ex
   }
 
   private def evalValue(value: Any, bindings: Map[String, Any]): Any = value match {
-    case m: Map[String, _] => m.transform((_, v) => evalValue(v, bindings))
+    case m: Map[_, _] => m.transform((_, v) => evalValue(v, bindings))
     case s: Seq[_] => s.map(evalValue(_, bindings))
     case e: Evaluable => e.eval(bindings)
     case v => v
@@ -74,13 +76,14 @@ class EvaluatedTemplate(val extra: Map[String, Any], val labels: Map[String, Seq
   }
 
   private def mergeValues(v1: Any, v2: Any): Any = (v1, v2) match {
-    case (v1: Map[String, _], v2: Map[String, _]) => deepMergeMaps(v1, v2)
+    case (v1: Map[_, _], v2: Map[_, _]) =>
+      deepMergeMaps(v1.asInstanceOf[Map[String, Any]], v2.asInstanceOf[Map[String, Any]])
     case (v1: Seq[Any], v2: Seq[Any]) => (v1 ++ v2).distinct
     case (_, v2) => v2
   }
 }
 
-object EvaluatedTemplate{
+object EvaluatedTemplate {
   val empty = new EvaluatedTemplate(Map.empty, Map.empty)
 }
 
@@ -103,7 +106,11 @@ case class JsEval(jsEngine: ScriptEngine, js: String) extends Evaluable {
     val jsBindings = jsEngine.createBindings
     bindings.foreach { case (k, v) => jsBindings.put(k, v) }
 
-    jsEngine.eval(js, jsBindings)
+    jsEngine.eval(js, jsBindings) match {
+      case `_: ScriptObjectMirror`(som) if som.isArray => som.to(classOf[Array[Any]]).toSeq
+      case som: Array[_] => som.toSeq
+      case v => v
+    }
   }
 }
 
@@ -111,4 +118,6 @@ object EvaluableNames {
   val JVMProp = "$jvm"
   val EnvVar = "$env"
   val JsEval = "$js"
+
+  object `_: ScriptObjectMirror` extends SafeTypeMatchingExtractor(classOf[jdk.nashorn.api.scripting.ScriptObjectMirror])
 }

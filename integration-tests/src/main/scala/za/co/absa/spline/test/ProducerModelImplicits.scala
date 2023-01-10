@@ -18,39 +18,59 @@ package za.co.absa.spline.test
 
 import za.co.absa.spline.producer.model._
 
+import scala.annotation.tailrec
+
 object ProducerModelImplicits {
 
-  implicit class DataOperationOps(val dataOperation: DataOperation) extends AnyVal {
+  implicit class OperationOps(val operation: Operation) extends AnyVal {
 
     def outputAttributes(implicit walker: LineageWalker): Seq[Attribute] = {
-      dataOperation.output
-        .getOrElse(Seq.empty)
-        .map(walker.attributeById)
+      operation.output.map(walker.attributeById)
     }
 
-    def precedingOp(implicit walker: LineageWalker): DataOperation =
-      walker.precedingOp(dataOperation)
-
-    def precedingOps(implicit walker: LineageWalker): Seq[DataOperation] =
-      walker.precedingOps(dataOperation)
-  }
-
-  implicit class WriteOperationOps(val write: WriteOperation) extends AnyVal {
-
-    def precedingOp(implicit walker: LineageWalker): DataOperation =
-      walker.precedingOp(write)
-
-    def precedingOps(implicit walker: LineageWalker): Seq[DataOperation] =
-      walker.precedingOps(write)
-  }
-
-  implicit class ReadOperationOps(val readOperation: ReadOperation) extends AnyVal {
-
-    def outputAttributes(implicit walker: LineageWalker): Seq[Attribute] = {
-      readOperation.output
-        .getOrElse(Seq.empty)
-        .map(walker.attributeById)
+    def childOperations(implicit walker: LineageWalker): Seq[Operation] = {
+      operation.childIds.map(walker.operationById)
     }
+
+    def childOperation(implicit walker: LineageWalker): Operation = {
+      val Seq(child) = childOperations(walker)
+      child
+    }
+
+    def dagLeaves(implicit walker: LineageWalker): (Seq[ReadOperation], Seq[DataOperation]) =
+      findLeaves(operation)
+
+
+  }
+
+  private def findLeaves(operation: Operation)(implicit walker: LineageWalker): (Seq[ReadOperation], Seq[DataOperation]) = {
+
+    @tailrec
+    def findLeavesRec(
+      toVisit: Seq[Operation],
+      readLeaves: List[ReadOperation],
+      dataLeaves: List[DataOperation]
+    ): (Seq[ReadOperation], Seq[DataOperation]) = toVisit match {
+      case (head: ReadOperation) +: tail =>
+        findLeavesRec(tail, head :: readLeaves, dataLeaves)
+
+      case (head: DataOperation) +: tail =>
+        val children = head.childOperations
+        if (children.isEmpty) {
+          findLeavesRec(tail, readLeaves, head :: dataLeaves)
+        } else {
+          findLeavesRec(children ++ tail, readLeaves, dataLeaves)
+        }
+
+      case Seq() => (readLeaves, dataLeaves)
+    }
+
+    val initialToVisit = operation match {
+      case write: WriteOperation => write.childOperations
+      case _ => Seq(operation)
+    }
+
+    findLeavesRec(initialToVisit, Nil, Nil)
   }
 
 }

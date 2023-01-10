@@ -14,19 +14,18 @@
  * limitations under the License.
  */
 
-package za.co.absa.spline.harvester.builder
+package za.co.absa.spline.harvester.builder.plan
 
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import za.co.absa.commons.lang.OptionImplicits._
 import za.co.absa.spline.harvester.IdGeneratorsBundle
 import za.co.absa.spline.harvester.converter.{DataConverter, DataTypeConverter, OperationParamsConverter}
 import za.co.absa.spline.harvester.postprocessing.PostProcessor
 import za.co.absa.spline.producer.model.DataOperation
 
-class GenericNodeBuilder
-  (val operation: LogicalPlan)
+class GenericPlanNodeBuilder
+  (val logicalPlan: LogicalPlan)
   (val idGenerators: IdGeneratorsBundle, val dataTypeConverter: DataTypeConverter, val dataConverter: DataConverter, postProcessor: PostProcessor)
-  extends OperationNodeBuilder {
+  extends PlanOperationNodeBuilder {
 
   override protected type R = DataOperation
 
@@ -36,11 +35,11 @@ class GenericNodeBuilder
   override def build(): DataOperation = {
     val dop = DataOperation(
       id = operationId,
-      name = operation.nodeName.asOption,
-      childIds = childIds.asOption,
-      output = outputAttributes.map(_.id).asOption,
-      params = operationParamsConverter.convert(operation).asOption,
-      extra = None
+      name = logicalPlan.nodeName,
+      childIds = childIds,
+      output = outputAttributes.map(_.id),
+      params = operationParamsConverter.convert(logicalPlan),
+      extra = Map.empty
     )
 
     postProcessor.process(dop)
